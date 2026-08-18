@@ -1,0 +1,11 @@
+<library path="joint_torque_wrench_estimator">
+  <class name="joint_torque_wrench_estimator/WrenchEstimatorBroadcaster"
+         type="joint_torque_wrench_estimator::WrenchEstimatorBroadcaster"
+         base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Model-based Cartesian wrench estimator from joint torques. Broadcaster
+      that exports the standard ForceTorqueSensor state interfaces and
+      publishes geometry_msgs/WrenchStamped on ~/wrench.
+    </description>
+  </class>
+</library>

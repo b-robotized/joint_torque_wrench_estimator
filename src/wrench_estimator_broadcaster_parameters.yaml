@@ -1,0 +1,101 @@
+wrench_estimator_broadcaster:
+  torque_state_interfaces: {
+    type: string_array,
+    default_value: [],
+    description: "Full state-interface names carrying the measured joint torque, one per joint, in Pinocchio chain order. Empty (default) means '<joint>/effort'.",
+  }
+  torque_scale: {
+    type: double_array,
+    default_value: [1.0],
+    description: "Multiplies each measured torque before use, converting the source's units to Nm. Scalar (broadcast to all joints) or one per joint. Needed when the source is not already in Nm, e.g. raw motor current, or fixed-point torque counts. May be negative where the source's sign convention differs from the URDF joint axis.",
+  }
+  torque_is_external: {
+    type: bool,
+    default_value: false,
+    description: "What torque_state_interfaces carries. false (default): the FULL joint torque, so the external part is extracted here by subtracting the model's dynamics (see 'algorithm'). true: the torque is ALREADY the external/disturbance torque, i.e. the robot controller has itself computed measured-minus-model (some industrial controllers expose this for collision detection). Set true to use it directly; leaving it false would subtract gravity a second time and report roughly the negative of the load.",
+  }
+  base_link: {
+    type: string,
+    default_value: "",
+    description: "Root of the kinematic chain (e.g. base_link). Required.",
+    validation: {
+      not_empty<>: null,
+    }
+  }
+  tip_link: {
+    type: string,
+    default_value: "",
+    description: "Tip / wrench application frame (e.g. tool0). Required.",
+    validation: {
+      not_empty<>: null,
+    }
+  }
+  algorithm: {
+    type: string,
+    default_value: "momentum_observer",
+    description: "Estimator algorithm: 'momentum_observer' (default) or 'inverse_dynamics' (ablation).",
+    validation: {
+      one_of<>: [["momentum_observer", "inverse_dynamics"]],
+    }
+  }
+  pinv_damping: {
+    type: double,
+    default_value: 0.01,
+    description: "Damping alpha in (J J^T + alpha*I)^-1. Trades estimate shrinkage (under-estimation) for noise immunity in directions where J is poorly conditioned. Increase if the wrench is dominated by noise; decrease if you observe excessive under-estimation in free space.",
+    validation: {
+      gt_eq<>: 0.0,
+    }
+  }
+  singularity_threshold: {
+    type: double,
+    default_value: 0.001,
+    description: "Minimum singular value of J below which the estimate is gated to last-good.",
+    validation: {
+      gt_eq<>: 0.0,
+    }
+  }
+  gravity_vector: {
+    type: double_array,
+    default_value: [0.0, 0.0, -9.81],
+    description: "Gravity in base_link frame. NOT world [0,0,-9.81] unless base_link is gravity-aligned.",
+    validation: {
+      fixed_size<>: 3,
+    }
+  }
+  wrench_filter_cutoff_hz: {
+    type: double,
+    default_value: 10.0,
+    description: "Output low-pass cutoff. 0 disables filtering.",
+    validation: {
+      gt_eq<>: 0.0,
+    }
+  }
+  joint_torque_filter_cutoff_hz: {
+    type: double,
+    default_value: 0.0,
+    description: "Optional pre-filter on joint torque. 0 disables.",
+    validation: {
+      gt_eq<>: 0.0,
+    }
+  }
+  joint_velocity_filter_cutoff_hz: {
+    type: double,
+    default_value: 0.0,
+    description: "Optional pre-filter on joint velocity. 0 disables.",
+    validation: {
+      gt_eq<>: 0.0,
+    }
+  }
+  wrench_deadband: {
+    type: double_array,
+    default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    description: "Per-axis deadband [Fx, Fy, Fz, Tx, Ty, Tz]. Output clamped to zero within band.",
+    validation: {
+      fixed_size<>: 6,
+    }
+  }
+  observer_gain: {
+    type: double_array,
+    default_value: [50.0],
+    description: "Momentum-observer gain K_O. Scalar (broadcast to all joints) or per-joint vector.",
+  }
