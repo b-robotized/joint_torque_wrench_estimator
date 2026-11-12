@@ -15,6 +15,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <pinocchio/algorithm/compute-all-terms.hpp>
@@ -347,28 +348,39 @@ WrenchEstimatorBroadcaster::state_interface_configuration() const
   return config;
 }
 
-std::vector<hardware_interface::CommandInterface>
-WrenchEstimatorBroadcaster::on_export_reference_interfaces()
+std::vector<hardware_interface::CommandInterface::SharedPtr>
+WrenchEstimatorBroadcaster::on_export_reference_interfaces_list()
 {
   return {};
 }
 
-std::vector<hardware_interface::StateInterface>
-WrenchEstimatorBroadcaster::on_export_state_interfaces()
+std::vector<hardware_interface::StateInterface::SharedPtr>
+WrenchEstimatorBroadcaster::on_export_state_interfaces_list()
 {
   // ros2_control mandates that exported state-interface prefixes begin with
   // the controller's own name. The instance name therefore IS the sensor
   // name from downstream's perspective.
   const std::string prefix = get_node()->get_name();
-  std::vector<hardware_interface::StateInterface> state_interfaces;
+  std::vector<hardware_interface::StateInterface::SharedPtr> state_interfaces;
   state_interfaces.reserve(kCartesianDim);
   for (std::size_t i = 0; i < kCartesianDim; ++i)
   {
-    state_interfaces.emplace_back(
-      hardware_interface::StateInterface(
-        prefix, std::string(kFtsInterfaceSuffixes[i]), &exported_wrench_[i]));
+    hardware_interface::InterfaceInfo info;
+    info.name = kFtsInterfaceSuffixes[i];
+    info.initial_value = "0.0";
+    state_interfaces.push_back(
+      std::make_shared<hardware_interface::StateInterface>(
+        hardware_interface::InterfaceDescription(prefix, info)));
   }
   return state_interfaces;
+}
+
+void WrenchEstimatorBroadcaster::write_exported_wrench()
+{
+  for (std::size_t i = 0; i < ordered_exported_state_interfaces_.size(); ++i)
+  {
+    std::ignore = ordered_exported_state_interfaces_[i]->set_value(exported_wrench_[i]);
+  }
 }
 
 bool WrenchEstimatorBroadcaster::on_set_chained_mode(bool /*chained_mode*/) { return true; }
@@ -429,6 +441,7 @@ controller_interface::CallbackReturn WrenchEstimatorBroadcaster::on_activate(
   qd_filtered_.setZero();
   tau_filtered_.setZero();
   exported_wrench_.fill(0.0);
+  write_exported_wrench();
 
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -437,6 +450,7 @@ controller_interface::CallbackReturn WrenchEstimatorBroadcaster::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   exported_wrench_.fill(0.0);
+  write_exported_wrench();
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -614,11 +628,12 @@ controller_interface::return_type WrenchEstimatorBroadcaster::update_and_write_c
   {
     exported_wrench_[i] = wrench_out(static_cast<Eigen::Index>(i));
   }
+  write_exported_wrench();
 
   // ── Publish for visibility ──────────────────────────────────────────
-  if (rt_wrench_pub_ && rt_wrench_pub_->trylock())
+  if (rt_wrench_pub_)
   {
-    auto & msg = rt_wrench_pub_->msg_;
+    auto & msg = wrench_msg_;
     msg.header.stamp = time;
     msg.header.frame_id = params_.tip_link;
     msg.wrench.force.x = exported_wrench_[0];
@@ -627,17 +642,17 @@ controller_interface::return_type WrenchEstimatorBroadcaster::update_and_write_c
     msg.wrench.torque.x = exported_wrench_[3];
     msg.wrench.torque.y = exported_wrench_[4];
     msg.wrench.torque.z = exported_wrench_[5];
-    rt_wrench_pub_->unlockAndPublish();
+    rt_wrench_pub_->try_publish(msg);
   }
 
   // ── Publish the payload the wrench implies ──────────────────────────
-  if (rt_payload_pub_ && rt_payload_pub_->trylock())
+  if (rt_payload_pub_)
   {
     const Eigen::Vector3d f = wrench_out.head<3>();
     const Eigen::Vector3d t = wrench_out.tail<3>();
     const double f_norm = f.norm();
 
-    auto & msg = rt_payload_pub_->msg_;
+    auto & msg = payload_msg_;
     msg.header.stamp = time;
     msg.header.frame_id = params_.tip_link;
     msg.inertia.m = f_norm / gravity_magnitude_;
@@ -664,7 +679,7 @@ controller_interface::return_type WrenchEstimatorBroadcaster::update_and_write_c
     msg.inertia.iyz = 0.0;
     msg.inertia.izz = 0.0;
 
-    rt_payload_pub_->unlockAndPublish();
+    rt_payload_pub_->try_publish(msg);
   }
 
   return controller_interface::return_type::OK;

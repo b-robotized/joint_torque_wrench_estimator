@@ -57,9 +57,11 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 protected:
-  std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override;
+  std::vector<hardware_interface::CommandInterface::SharedPtr> on_export_reference_interfaces_list()
+    override;
 
-  std::vector<hardware_interface::StateInterface> on_export_state_interfaces() override;
+  std::vector<hardware_interface::StateInterface::SharedPtr> on_export_state_interfaces_list()
+    override;
 
   bool on_set_chained_mode(bool chained_mode) override;
 
@@ -109,9 +111,12 @@ private:
   Eigen::Matrix<double, kCartesianDim, 1> wrench_filtered_;
   Eigen::Matrix<double, kCartesianDim, 1> wrench_deadband_;
 
-  // Exported FTS state-interface backing storage.
+  // Values of the exported FTS state interfaces.
   // Order: Fx, Fy, Fz, Tx, Ty, Tz
   std::array<double, kCartesianDim> exported_wrench_{};
+
+  // Copy exported_wrench_ to the exported state interfaces.
+  void write_exported_wrench();
 
   // State flags
   bool observer_initialized_{false};
@@ -123,10 +128,12 @@ private:
   std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>> wrench_pub_;
   std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>>
     rt_wrench_pub_;
+  geometry_msgs::msg::WrenchStamped wrench_msg_;
 
   std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::InertiaStamped>> payload_pub_;
   std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::InertiaStamped>>
     rt_payload_pub_;
+  geometry_msgs::msg::InertiaStamped payload_msg_;
 
   // Normalized magnitude of gravity, from gravity_vector. Converts |F| to a mass.
   double gravity_magnitude_{9.81};
