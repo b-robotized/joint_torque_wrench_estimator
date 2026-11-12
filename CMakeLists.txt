@@ -45,9 +45,9 @@ target_link_libraries(${PROJECT_NAME}
   wrench_estimator_broadcaster_parameters
   pinocchio::pinocchio
 )
-ament_target_dependencies(${PROJECT_NAME}
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
+foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
+  target_link_libraries(${PROJECT_NAME} ${${dependency}_TARGETS})
+endforeach()
 
 pluginlib_export_plugin_description_file(controller_interface plugin_description.xml)
 
