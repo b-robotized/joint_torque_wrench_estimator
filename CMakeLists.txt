@@ -68,6 +68,17 @@ install(DIRECTORY include/
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gmock REQUIRED)
+  find_package(lifecycle_msgs REQUIRED)
+
+  ament_add_gmock(test_wrench_estimator_broadcaster
+    test/test_wrench_estimator_broadcaster.cpp
+  )
+  target_link_libraries(test_wrench_estimator_broadcaster
+    ${PROJECT_NAME}
+    ${lifecycle_msgs_TARGETS}
+  )
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
