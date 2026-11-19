@@ -142,8 +142,12 @@ controller_interface::CallbackReturn WrenchEstimatorBroadcaster::on_configure(
 
   try
   {
+    // buildReducedModel appends to its output model. Build into a new model,
+    // otherwise a re-configure adds the chain joints a second time.
     const Eigen::VectorXd q_default = pinocchio::neutral(full_model);
-    pinocchio::buildReducedModel(full_model, joints_to_lock, q_default, model_);
+    pinocchio::Model reduced_model;
+    pinocchio::buildReducedModel(full_model, joints_to_lock, q_default, reduced_model);
+    model_ = std::move(reduced_model);
   }
   catch (const std::exception & e)
   {
